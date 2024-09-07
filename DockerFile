@@ -1,0 +1,23 @@
+# Use a minimal base image
+FROM python:3.9-alpine
+
+# Create a group and user with non-root privileges
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the application code
+COPY . /app
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Change the ownership of the application files to the non-root user
+RUN chown -R appuser:appgroup /app
+
+# Switch to the non-root user
+USER appuser
+
+# Run the application
+CMD ["python", "app.py"]

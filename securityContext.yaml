@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: secure-pod
+spec:
+  containers:
+  - name: secure-container
+    image: nginx:alpine
+    securityContext:
+      runAsUser: 1000         # Runs the container as a non-root user
+      runAsGroup: 3000        # Runs the container under a specific group
+      allowPrivilegeEscalation: false # Prevents privilege escalation
+      readOnlyRootFilesystem: true    # Makes the root filesystem read-only
+  securityContext:
+    fsGroup: 2000             # Sets the file system group for volumes

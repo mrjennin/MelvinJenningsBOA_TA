@@ -1,0 +1,74 @@
+pipeline {
+    agent any
+
+    environment {
+        AZURE_CREDENTIALS = credentials('azure-service-principal') // Set up your Azure credentials in Jenkins
+        DOCKER_IMAGE = "myorg/myappsample"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout the code from version control
+                git 'https://github.com/mysample/myappsample.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                // Build the application
+                script {
+                    docker.build("${DOCKER_IMAGE}:${env.BUILD_ID}")
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                // Run application tests
+                script {
+                    docker.image("${DOCKER_IMAGE}:${env.BUILD_ID}").inside {
+                        sh 'npm install'
+                        sh 'npm test'
+                    }
+                }
+            }
+        }
+
+        stage('Security Scan') {
+            steps {
+                // Perform a security scan on the Docker image
+                script {
+                    docker.image("${DOCKER_IMAGE}:${env.BUILD_ID}").inside {
+                        sh 'trivy image --exit-code 1 --severity HIGH,CRITICAL ${DOCKER_IMAGE}:${env.BUILD_ID}'
+                    }
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                // Deploy the application to Azure
+                script {
+                    withCredentials([string(credentialsId: 'azure-subscription-id', variable: 'SUBSCRIPTION_ID')]) {
+                        sh '''
+                        az login --service-principal -u $AZURE_CREDENTIALS_USR -p $AZURE_CREDENTIALS_PSW --tenant $AZURE_CREDENTIALS_TENANT
+                        az account set --subscription $SUBSCRIPTION_ID
+                        az acr login --name myregistry
+                        docker tag ${DOCKER_IMAGE}:${env.BUILD_ID} myregistry.azurecr.io/${DOCKER_IMAGE}:${env.BUILD_ID}
+                        docker push myregistry.azurecr.io/${DOCKER_IMAGE}:${env.BUILD_ID}
+                        az containerapp update --name myapp --resource-group myResourceGroup --image myregistry.azurecr.io/${DOCKER_IMAGE}:${env.BUILD_ID}
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Cleanup workspace
+            cleanWs()
+        }
+    }
+}
